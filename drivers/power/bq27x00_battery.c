@@ -36,6 +36,8 @@
 #include <linux/idr.h>
 #include <linux/i2c.h>
 #include <linux/slab.h>
+#include <linux/of.h>
+#include <linux/of_device.h>
 #include <asm/unaligned.h>
 
 #include <linux/power/bq27x00_battery.h>
@@ -46,8 +48,8 @@
 #define BQ27x00_REG_VOLT		0x08
 #define BQ27x00_REG_AI			0x14
 #define BQ27x00_REG_FLAGS		0x0A
-#define BQ27x00_REG_TTE			0x16
-#define BQ27x00_REG_TTF			0x18
+#define BQ27x00_REG_TTE			0x16 /* Time to empty */
+#define BQ27x00_REG_TTF			0x18 /* Time to full */
 #define BQ27x00_REG_TTECP		0x26
 #define BQ27x00_REG_NAC			0x0C /* Nominal available capacity */
 #define BQ27x00_REG_LMD			0x12 /* Last measured discharge */
@@ -83,7 +85,7 @@ struct bq27x00_access_methods {
 	int (*read)(struct bq27x00_device_info *di, u8 reg, bool single);
 };
 
-enum bq27x00_chip { BQ27000, BQ27500, BQ27425};
+enum bq27x00_chip { BQ27000, BQ27500, BQ27425 };
 
 struct bq27x00_reg_cache {
 	int temperature;
@@ -854,6 +856,15 @@ static int bq27x00_battery_remove(struct i2c_client *client)
 	return 0;
 }
 
+#ifdef CONFIG_OF
+static struct of_device_id bq27x00_dt_match[] = {
+	{ .compatible = "ti,bq27200" },
+	{ .compatible = "ti,bq27500" },
+	{ .compatible = "ti,bq27425" },
+	{ },
+};
+#endif
+
 static const struct i2c_device_id bq27x00_id[] = {
 	{ "bq27200", BQ27000 },	/* bq27200 is same as bq27000, but with i2c */
 	{ "bq27500", BQ27500 },
@@ -865,6 +876,7 @@ MODULE_DEVICE_TABLE(i2c, bq27x00_id);
 static struct i2c_driver bq27x00_battery_driver = {
 	.driver = {
 		.name = "bq27x00-battery",
+		.of_match_table = of_match_ptr(bq27x00_dt_match),
 	},
 	.probe = bq27x00_battery_probe,
 	.remove = bq27x00_battery_remove,
