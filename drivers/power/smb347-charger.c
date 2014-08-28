@@ -150,6 +150,7 @@ struct smb347_charger {
 };
 
 enum smb_charger_chipid {
+	SMB345,
 	SMB347,
 	SMB358,
 	NUM_CHIP_TYPES,
@@ -157,6 +158,8 @@ enum smb_charger_chipid {
 
 /* Fast charge current in uA */
 static const unsigned int fcc_tbl[NUM_CHIP_TYPES][8] = {
+	[SMB345] = { 700000, 900000, 1200000, 1500000,
+			1800000, 2000000, 2200000, 2500000 },	// FIXME: confirm values
 	[SMB347] = { 700000, 900000, 1200000, 1500000,
 			1800000, 2000000, 2200000, 2500000 },
 	[SMB358] = { 200000, 450000, 600000, 900000,
@@ -165,12 +168,15 @@ static const unsigned int fcc_tbl[NUM_CHIP_TYPES][8] = {
 
 /* Pre-charge current in uA */
 static const unsigned int pcc_tbl[NUM_CHIP_TYPES][4] = {
+	[SMB345] = { 100000, 150000, 200000, 250000 },		// FIXME: confirm values
 	[SMB347] = { 100000, 150000, 200000, 250000 },
 	[SMB358] = { 150000, 250000, 350000, 450000 },
 };
 
 /* Termination current in uA */
 static const unsigned int tc_tbl[NUM_CHIP_TYPES][8] = {
+	[SMB345] = { 37500, 50000, 100000, 150000,
+			200000, 250000, 500000, 600000 },	// FIXME: confirm values
 	[SMB347] = { 37500, 50000, 100000, 150000,
 			200000, 250000, 500000, 600000 },
 	[SMB358] = { 30000, 40000, 60000, 80000,
@@ -179,6 +185,8 @@ static const unsigned int tc_tbl[NUM_CHIP_TYPES][8] = {
 
 /* Input current limit in uA */
 static const unsigned int icl_tbl[NUM_CHIP_TYPES][10] = {
+	[SMB345] = { 300000, 500000, 700000, 900000, 1200000,
+			1500000, 1800000, 2000000, 2200000, 2500000 },	// FIXME: confirm values
 	[SMB347] = { 300000, 500000, 700000, 900000, 1200000,
 			1500000, 1800000, 2000000, 2200000, 2500000 },
 	[SMB358] = { 300000, 500000, 700000, 1000000, 1500000,
@@ -187,6 +195,7 @@ static const unsigned int icl_tbl[NUM_CHIP_TYPES][10] = {
 
 /* Charge current compensation in uA */
 static const unsigned int ccc_tbl[NUM_CHIP_TYPES][4] = {
+	[SMB345] = { 250000, 700000, 900000, 1200000 },		// FIXME: confirm values
 	[SMB347] = { 250000, 700000, 900000, 1200000 },
 	[SMB358] = { 200000, 450000, 600000, 900000 },
 };
@@ -194,6 +203,7 @@ static const unsigned int ccc_tbl[NUM_CHIP_TYPES][4] = {
 /* Convert register value to current using lookup table */
 static int hw_to_current(const unsigned int *tbl, size_t size, unsigned int val)
 {
+	pr_debug("Converting %d\n", val);
 	if (val >= size)
 		return -EINVAL;
 	return tbl[val];
@@ -204,6 +214,7 @@ static int current_to_hw(const unsigned int *tbl, size_t size, unsigned int val)
 {
 	size_t i;
 
+	pr_debug("Looking up %d\n", val);
 	for (i = 0; i < size; i++)
 		if (val < tbl[i])
 			break;
@@ -1361,6 +1372,7 @@ static int smb347_remove(struct i2c_client *client)
 }
 
 static const struct i2c_device_id smb347_id[] = {
+	{ "smb345", SMB345 },
 	{ "smb347", SMB347 },
 	{ "smb358", SMB358 },
 	{ }
@@ -1369,6 +1381,7 @@ MODULE_DEVICE_TABLE(i2c, smb347_id);
 
 #ifdef CONFIG_OF
 static struct of_device_id of_smb347_ids[] = {
+	{ .compatible = "summit,smb345" },
 	{ .compatible = "summit,smb347" },
 	{ .compatible = "summit,smb358" },
 	{},
