@@ -12,6 +12,7 @@
  * GNU General Public License for more details.
  */
 
+#include <linux/delay.h>
 #include <linux/err.h>
 #include <linux/io.h>
 #include <linux/module.h>
@@ -27,12 +28,17 @@
 #include <linux/interrupt.h>
 #include <linux/spinlock.h>
 
+#include <asm/system_misc.h>
+
 #include "../core.h"
 #include "../pinconf.h"
 #include "pinctrl-msm.h"
 #include "../pinctrl-utils.h"
 
 #define MAX_NR_GPIO 300
+#define PS_HOLD_OFFSET 0x820
+
+static void __iomem *msm_ps_hold;
 
 /**
  * struct msm_pinctrl - state for a pinctrl-msm device
@@ -848,10 +854,31 @@ static int msm_gpio_init(struct msm_pinctrl *pctrl)
 	return 0;
 }
 
+static void qcom_reset(enum reboot_mode reboot_mode, const char *cmd)
+{
+	writel(0, msm_ps_hold);
+	mdelay(10000);
+}
+
+const struct msm_function
+*find_pshold_function(const struct msm_function *functions,
+					unsigned nfunctions, const char *name)
+{
+	int i = 0;
+	const struct msm_function *func;
+
+	for (func = functions; i <= nfunctions; func++, i++)
+		if (!strcmp(func->name, name))
+			return func;
+
+	return NULL;
+}
+
 int msm_pinctrl_probe(struct platform_device *pdev,
 		      const struct msm_pinctrl_soc_data *soc_data)
 {
 	struct msm_pinctrl *pctrl;
+	const struct msm_function *func;
 	struct resource *res;
 	int ret;
 
@@ -871,6 +898,17 @@ int msm_pinctrl_probe(struct platform_device *pdev,
 	if (IS_ERR(pctrl->regs))
 		return PTR_ERR(pctrl->regs);
 
+#ifdef CONFIG_ARM
+	func = find_pshold_function(soc_data->functions,
+					soc_data->nfunctions, "ps_hold");
+	if (func) {
+		dev_dbg(&pdev->dev, "Found Function %s\n", func->name);
+		msm_ps_hold = pctrl->regs + PS_HOLD_OFFSET;
+		arm_pm_restart = qcom_reset;
+	}
+#else
+#error "not supported on this arch"
+#endif
 	pctrl->irq = platform_get_irq(pdev, 0);
 	if (pctrl->irq < 0) {
 		dev_err(&pdev->dev, "No interrupt defined for msmgpio\n");
