@@ -111,6 +111,7 @@ struct smb347_charger_platform_data {
 	bool		use_usb;
 	bool		use_usb_otg;
 	int		irq_gpio;
+	const char	*external_bat;
 	enum smb347_chg_enable enable_control;
 };
 

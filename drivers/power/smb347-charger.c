@@ -723,10 +723,14 @@ static irqreturn_t smb347_interrupt(int irq, void *data)
 		return IRQ_NONE;
 	}
 
-	ret = regmap_read(smb->regmap, IRQSTAT_D, &irqstat_d);
-	if (ret < 0) {
-		dev_warn(smb->dev, "reading IRQSTAT_D failed\n");
-		return IRQ_NONE;
+	if (smb->id == SMB345)
+		pr_info("%s: skipping IRQSTAT_D\n", __func__);
+	else {
+		ret = regmap_read(smb->regmap, IRQSTAT_D, &irqstat_d);
+		if (ret < 0) {
+			dev_warn(smb->dev, "reading IRQSTAT_D failed\n");
+			return IRQ_NONE;
+		}
 	}
 
 	ret = regmap_read(smb->regmap, IRQSTAT_E, &irqstat_e);
@@ -848,8 +852,9 @@ static int smb347_irq_init(struct smb347_charger *smb,
 		client->irq = irq;
 	}
 
+	pr_info("%s: requesting threaded IRQ %d for %s\n", __func__, client->irq, client->name);
 	ret = devm_request_threaded_irq(smb->dev, client->irq, NULL,
-					smb347_interrupt, IRQF_TRIGGER_FALLING,
+					smb347_interrupt, IRQF_TRIGGER_FALLING | IRQF_ONESHOT,
 					client->name, smb);
 	if (ret < 0)
 		goto out;
@@ -1229,6 +1234,9 @@ static void smb347_dt_parse_pdata(struct device_node *np,
 	pdata->use_usb = of_property_read_bool(np, "enable-usb-charging");
 	pdata->use_usb_otg = of_property_read_bool(np, "enable-otg-charging");
 
+	/* External battery */
+	of_property_read_string(np, "smb,battery", &pdata->external_bat);
+
 	/* Enable charging method */
 	of_property_read_u32(np, "enable-chg-ctrl", &pdata->enable_control);
 
@@ -1269,6 +1277,7 @@ static int smb347_probe(struct i2c_client *client,
 	struct device *dev = &client->dev;
 	struct smb347_charger *smb;
 	int ret;
+	pr_info("%s start\n", __func__);
 
 	smb = devm_kzalloc(dev, sizeof(*smb), GFP_KERNEL);
 	if (!smb)
@@ -1294,6 +1303,28 @@ static int smb347_probe(struct i2c_client *client,
 	ret = smb347_hw_init(smb);
 	if (ret < 0)
 		return ret;
+
+	// If a dedicated battery has been set up in dt, try to fetch it
+	if (smb->pdata->external_bat) {
+		pr_info("%s: probing external battery\n", __func__);
+		snprintf(battery[0], strlen(smb->pdata->external_bat), smb->pdata->external_bat);
+	}
+	else {
+		smb->battery.name = "smb347-battery";
+		smb->battery.type = POWER_SUPPLY_TYPE_BATTERY;
+		smb->battery.get_property = smb347_battery_get_property;
+		smb->battery.properties = smb347_battery_properties;
+		smb->battery.num_properties = ARRAY_SIZE(smb347_battery_properties);
+
+		ret = power_supply_register(dev, &smb->battery);
+		if (ret < 0) {
+			if (smb->pdata->use_usb)
+				power_supply_unregister(&smb->usb);
+			if (smb->pdata->use_mains)
+				power_supply_unregister(&smb->mains);
+			return ret;
+		}
+	}
 
 	if (smb->pdata->use_mains) {
 		smb->mains.name = "smb347-mains";
@@ -1324,21 +1355,6 @@ static int smb347_probe(struct i2c_client *client,
 		}
 	}
 
-	smb->battery.name = "smb347-battery";
-	smb->battery.type = POWER_SUPPLY_TYPE_BATTERY;
-	smb->battery.get_property = smb347_battery_get_property;
-	smb->battery.properties = smb347_battery_properties;
-	smb->battery.num_properties = ARRAY_SIZE(smb347_battery_properties);
-
-	ret = power_supply_register(dev, &smb->battery);
-	if (ret < 0) {
-		if (smb->pdata->use_usb)
-			power_supply_unregister(&smb->usb);
-		if (smb->pdata->use_mains)
-			power_supply_unregister(&smb->mains);
-		return ret;
-	}
-
 	/*
 	 * Interrupt pin is optional. If it is connected, we setup the
 	 * interrupt support here.
@@ -1353,6 +1369,7 @@ static int smb347_probe(struct i2c_client *client,
 		}
 	}
 
+	pr_info("%s end\n", __func__);
 	return 0;
 }
 
