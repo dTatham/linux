@@ -132,6 +132,7 @@ spansion	Spansion Inc.
 st	STMicroelectronics
 ste	ST-Ericsson
 stericsson	ST-Ericsson
+summit	Summit microelectronics
 synology	Synology, Inc.
 ti	Texas Instruments
 tlm	Trusted Logic Mobility
