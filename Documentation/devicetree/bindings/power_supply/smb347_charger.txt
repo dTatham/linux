@@ -17,6 +17,8 @@ smb347_charger bindings
 		<0> : SW (i2c interface)
 		<1> : Pin control (Active Low)
 		<2> : Pin control (Active High)
+- smb,battery (string): The name of a optional battery, if fuelgauge is handled by a different driver
+
 # Charging constraints
 - max-chg-curr : Maximum current for charging (in uA)
 - max-chg-volt : Maximum voltage for charging (in uV)
